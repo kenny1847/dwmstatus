@@ -114,7 +114,7 @@ getbattery()
 		fscanf(fp, "%s\n", status);
 		fclose(fp);
 		if (strcmp(status,"Charging") == 0){
-			s = "CHR\0";
+			s = "\0";
 			time = (long double)(chr_full - chr_now)/(long double)cur_now;
 			hh = floor(time);
 			mm = fmod(time,1)*60;
@@ -122,7 +122,17 @@ getbattery()
 			return smprintf("%s %0*i:%0*i:%0*i %ld%%", s, 2, hh, 2, mm, 2, ss, capacity);
 		}
 		if (strcmp(status,"Discharging") == 0){
-			s = "BAT\0";
+			if (capacity >= 80) {
+				s = "\0";
+			} else if (capacity >= 60 && capacity < 80) {
+				s = "\0";
+			} else if (capacity >= 40 && capacity < 60) {
+				s = "\0";
+			} else if (capacity >= 20 && capacity < 40) {
+				s = "\0";
+			} else {
+				s = "\0";
+			}
 			time = (long double)(chr_now)/(long double)cur_now;
 			hh = floor(time);
 			mm = fmod(time,1)*60;
@@ -130,7 +140,7 @@ getbattery()
 			return smprintf("%s %0*i:%0*i:%0*i %ld%%", s, 2, hh, 2, mm, 2, ss, capacity);
 		}
 		if (strcmp(status,"Full") == 0){
-			s = "FULL\0";
+			s = "\0";
 			return smprintf("%s %ld%%", s, capacity);
 		}
 	}
@@ -204,17 +214,18 @@ getmpdstat()
 		elapsed = mpd_status_get_elapsed_time(theStatus);
 		total = mpd_status_get_total_time(theStatus);
 		mpd_song_free(song);
-		retstr = smprintf("%.2d:%.2d/%.2d:%.2d %s - %s|",
+		retstr = smprintf("  %.2d:%.2d/%.2d:%.2d %s - %s  ",
 		                   elapsed/60, elapsed%60,
 		                   total/60, total%60,
 		                   artist, title);
 		free((char*)title);
 		free((char*)artist);
-       	}
-	else retstr = smprintf("");
-		mpd_response_finish(conn);
-		mpd_connection_free(conn);
-		return retstr;
+       	} else {
+		retstr = smprintf("");
+	}
+	mpd_response_finish(conn);
+	mpd_connection_free(conn);
+	return retstr;
 }
 
 int
@@ -234,7 +245,7 @@ main(void)
 		vol   = get_vol();
 		mpd   = getmpdstat();
 
-		status = smprintf("%s♪%i%|%s|%s", mpd, vol, bat, tmmsk);
+		status = smprintf("%s  %i%%  %s   %s", mpd, vol, bat, tmmsk);
 		setstatus(status);
 
 		free(tmmsk);

@@ -5,7 +5,7 @@ My fork of [dwmstatus](http://git.suckless.org/dwmstatus)
 Statusbar for [dwm](http://dwm.suckless.org/) consists of 
 * Time
 * Battery status (same output as acpi)
-* Sound info (from ASLA)
+* Sound info (from [ALSA](https://en.wikipedia.org/wiki/Advanced_Linux_Sound_Architecture))
 * mpd info (when playing music)
 
 ##Requirements

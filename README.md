@@ -1,4 +1,4 @@
-#dwmstat
+#dwmstatus
 My fork of [dwmstatus](http://git.suckless.org/dwmstatus)
 
 ##Description
@@ -20,6 +20,9 @@ $ sudo make install
 
 ##Screenshots
 Full info
+
 ![Imgur](http://i.imgur.com/c5eMoST.png)
+
 Without mpd
+
 ![Imgur](http://i.imgur.com/c5eMoST.png)

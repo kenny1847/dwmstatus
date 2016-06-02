@@ -25,4 +25,4 @@ Full info
 
 Without mpd
 
-![Imgur](http://i.imgur.com/c5eMoST.png)
+![Imgur](http://i.imgur.com/Q4LNzJ8.png)

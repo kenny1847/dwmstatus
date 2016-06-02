@@ -26,3 +26,7 @@ Full info
 Without mpd
 
 ![Imgur](http://i.imgur.com/Q4LNzJ8.png)
+
+Battery charging
+
+![Imgur](http://i.imgur.com/4Vmtl1p.png)

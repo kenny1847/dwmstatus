@@ -1,36 +1,27 @@
-#define _BSD_SOURCE
-#include <unistd.h>
+#define _DEFAULT_SOURCE
+#include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
-#include <strings.h>
-#include <sys/time.h>
 #include <time.h>
-#include <math.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <mpd/client.h>
-#include <X11/Xlib.h>
+#include <unistd.h>
 #include <alsa/asoundlib.h>
 #include <alsa/control.h>
+#include <X11/Xlib.h>
 
-char *tzmsk = "Europe/Moscow";
+#ifdef USE_MPD
+#	include <mpd/client.h>
+#endif
 
-static Display *dpy;
-
-char *
-smprintf(char *fmt, ...)
-{
+char* smprintf(const char* fmt, ...) {
 	va_list fmtargs;
-	char *ret;
-	int len;
 
 	va_start(fmtargs, fmt);
-	len = vsnprintf(NULL, 0, fmt, fmtargs);
+	int len = vsnprintf(NULL, 0, fmt, fmtargs);
 	va_end(fmtargs);
 
-	ret = malloc(++len);
+	char* ret = malloc(++len);
 	if (ret == NULL) {
 		perror("malloc");
 		exit(1);
@@ -43,29 +34,14 @@ smprintf(char *fmt, ...)
 	return ret;
 }
 
-void
-setstatus(char *str)
-{
-	XStoreName(dpy, DefaultRootWindow(dpy), str);
-	XSync(dpy, False);
-}
-
-/* 
- * TIME SECTION
- */
-
-char *
-mktimes(char *fmt, char *tzname)
-{
+char* get_date_time(const char* fmt, const char* tzname) {
 	char buf[129];
-	time_t tim;
-	struct tm *timtm;
 
 	memset(buf, 0, sizeof(buf));
 	setenv("TZ", tzname, 1);
 
-	tim = time(NULL);
-	timtm = localtime(&tim);
+	time_t tim = time(NULL);
+	struct tm* timtm = localtime(&tim);
 	if (timtm == NULL) {
 		perror("localtime");
 		exit(1);
@@ -79,123 +55,73 @@ mktimes(char *fmt, char *tzname)
 	return smprintf("%s", buf);
 }
 
-/*
- * ACPI SECTION
- */
-
-#define BATT_CURRENT_NOW  "/sys/class/power_supply/BAT1/current_now"
-#define BATT_CHARGE_NOW   "/sys/class/power_supply/BAT1/charge_now"
-#define BATT_CHARGE_FULL  "/sys/class/power_supply/BAT1/charge_full"
-#define BATT_CAPACITY     "/sys/class/power_supply/BAT1/capacity"
-#define BATT_STATUS       "/sys/class/power_supply/BAT1/status"
-
-char *
-getbattery()
-{
-	long chr_now, chr_full, cur_now = 0;
-	int capacity,hh,mm,ss = 0;
-	long double time = 0;
-	char *status = malloc(sizeof(char)*12);
-	char *s = malloc(sizeof(char)*5);
-	FILE *fp = NULL;
-	if ((fp = fopen(BATT_CHARGE_NOW, "r"))) {
-		fscanf(fp, "%ld\n", &chr_now);
-		fclose(fp);
-		fp = fopen(BATT_CHARGE_FULL, "r");
-		fscanf(fp, "%ld\n", &chr_full);
-		fclose(fp);
-		fp = fopen(BATT_CURRENT_NOW, "r");
-		fscanf(fp, "%ld\n", &cur_now);
-		fclose(fp);
-		fp = fopen(BATT_CAPACITY, "r");
-		fscanf(fp, "%i\n", &capacity);
-		fclose(fp);
-		fp = fopen(BATT_STATUS, "r");
-		fscanf(fp, "%s\n", status);
-		fclose(fp);
-		if (strcmp(status,"Charging") == 0){
-			s = "\0";
-			time = (long double)(chr_full - chr_now)/(long double)cur_now;
-			hh = floor(time);
-			mm = fmod(time,1)*60;
-			ss = fmod(time*60,1)*60;
-			return smprintf("%s %0*i:%0*i:%0*i %ld%%", s, 2, hh, 2, mm, 2, ss, capacity);
-		}
-		if (strcmp(status,"Discharging") == 0){
-			if (capacity >= 80) {
-				s = "\0";
-			} else if (capacity >= 60 && capacity < 80) {
-				s = "\0";
-			} else if (capacity >= 40 && capacity < 60) {
-				s = "\0";
-			} else if (capacity >= 20 && capacity < 40) {
-				s = "\0";
-			} else {
-				s = "\0";
+char* get_battery() {
+	FILE *file = NULL;
+	if ((file = fopen("/sys/class/power_supply/BAT0/capacity", "r"))) {
+		int capacity = 0;
+		fscanf(file, "%i\n", &capacity);
+		fclose(file);
+		if ((file = fopen("/sys/class/power_supply/BAT0/status", "r"))) {
+			char *status = malloc(sizeof(char)*12);
+			fscanf(file, "%s\n", status);
+			fclose(file);
+			if (strcmp(status,"Charging") == 0) {
+				return smprintf(" %ld%%", capacity);
+			} else if (strcmp(status,"Discharging") == 0) {
+				if (capacity >= 80) {
+					return smprintf(" %ld%%", capacity);
+				} else if (capacity >= 60 && capacity < 80) {
+					return smprintf(" %ld%%", capacity);
+				} else if (capacity >= 40 && capacity < 60) {
+					return smprintf(" %ld%%", capacity);
+				} else if (capacity >= 20 && capacity < 40) {
+					return smprintf(" %ld%%", capacity);
+				} else {
+					return smprintf(" %ld%%", capacity);
+				}
+			} else if (strcmp(status,"Full") == 0){
+				return smprintf(" %ld%%", capacity);
 			}
-			time = (long double)(chr_now)/(long double)cur_now;
-			hh = floor(time);
-			mm = fmod(time,1)*60;
-			ss = fmod(time*60,1)*60;
-			return smprintf("%s %0*i:%0*i:%0*i %ld%%", s, 2, hh, 2, mm, 2, ss, capacity);
-		}
-		if (strcmp(status,"Full") == 0){
-			s = "\0";
-			return smprintf("%s %ld%%", s, capacity);
 		}
 	}
-	else return smprintf("");
+	return smprintf("");
 }
 
-/*
- * ALSA SECTION
- */
-
-int
-get_vol(void)
-{
-	int vol;
-	snd_hctl_t *hctl;
-	snd_ctl_elem_id_t *id;
-	snd_ctl_elem_value_t *control;
-	
+int get_vol() {
+	snd_hctl_t* hctl;
 	/* To find card and subdevice: /proc/asound/, aplay -L, amixer controls */
 	snd_hctl_open(&hctl, "hw:1", 1);
 	snd_hctl_load(hctl);
-	
+
+	snd_ctl_elem_id_t* id;
 	snd_ctl_elem_id_alloca(&id);
 	snd_ctl_elem_id_set_interface(id, SND_CTL_ELEM_IFACE_MIXER);
-	
+
 	/* amixer controls */
 	snd_ctl_elem_id_set_name(id, "Master Playback Volume");
-	
+
 	snd_hctl_elem_t *elem = snd_hctl_find_elem(hctl, id);
-	
+
+	snd_ctl_elem_value_t* control;
 	snd_ctl_elem_value_alloca(&control);
 	snd_ctl_elem_value_set_id(control, id);
-	
+
 	snd_hctl_elem_read(elem, control);
-	vol = (int)snd_ctl_elem_value_get_integer(control,0);
-	
+	int vol = (int)snd_ctl_elem_value_get_integer(control, 0);
+
 	snd_hctl_close(hctl);
 	return (vol*100/87);
 }
 
-/*
- * MPD SECTION
- */
-
-char *
-getmpdstat() 
-{
+char* get_mpd_current_song() {
+#ifdef USE_MPD
 	struct mpd_song * song = NULL;
-	const char * title = NULL;
-	const char * artist = NULL;
-	char * retstr = NULL;
+	char* retstr = NULL;
+	const char* title = NULL;
+	const char* artist = NULL;
 	int elapsed = 0, total = 0;
-	struct mpd_connection * conn ;
-	if (!(conn = mpd_connection_new("localhost", 0, 30000)) ||
-		mpd_connection_get_error(conn)){
+	struct mpd_connection* conn;
+	if (!(conn = mpd_connection_new("localhost", 0, 30000)) || mpd_connection_get_error(conn)) {
 		return smprintf("");
 	}
 
@@ -210,7 +136,7 @@ getmpdstat()
 		song = mpd_recv_song(conn);
 		title = smprintf("%s",mpd_song_get_tag(song, MPD_TAG_TITLE, 0));
 		artist = smprintf("%s",mpd_song_get_tag(song, MPD_TAG_ARTIST, 0));
-		
+
 		elapsed = mpd_status_get_elapsed_time(theStatus);
 		total = mpd_status_get_total_time(theStatus);
 		mpd_song_free(song);
@@ -220,38 +146,47 @@ getmpdstat()
 		                   artist, title);
 		free((char*)title);
 		free((char*)artist);
-       	} else {
+	} else {
 		retstr = smprintf("");
 	}
 	mpd_response_finish(conn);
 	mpd_connection_free(conn);
 	return retstr;
+#else
+	return smprintf("");
+#endif
 }
 
-int
-main(void)
-{
-	char *status, *tmmsk, *bat, *mpd;
-	int  vol;
-
-	if (!(dpy = XOpenDisplay(NULL))) {
-		fprintf(stderr, "dwmstatus: cannot open display.\n");
+int main(int argc, char** argv) {
+	if (argc > 1) {
+		printf("%s - statusline for dwm\n", argv[0]);
 		return 1;
 	}
 
-	for (;;sleep(1)) {
-		tmmsk = mktimes("%H:%M", tzmsk);
-		bat   = getbattery();
-		vol   = get_vol();
-		mpd   = getmpdstat();
+	Display* dpy;
+	if (!(dpy = XOpenDisplay(NULL))) {
+		fprintf(stderr, "%s: cannot open display.\n", argv[0]);
+		return 1;
+	}
 
-		status = smprintf("%s  %i%%  %s   %s", mpd, vol, bat, tmmsk);
-		setstatus(status);
+	for (;;usleep(500000)) {
+		char* time = get_date_time("%H:%M", "Europe/Moscow");
+		char* date = get_date_time("%a %d.%m", "Europe/Moscow");
+		char* battery = get_battery();
+		char* current_song = get_mpd_current_song();
 
-		free(tmmsk);
-		free(bat);
-		free(mpd);
-		free(status);
+		char* result = smprintf("%s  %i%%  %s   %s   %s", current_song, get_vol(), battery, date, time);
+
+		XStoreName(dpy, DefaultRootWindow(dpy), result);
+		XSync(dpy, False);
+
+		printf("%s\n", result);
+
+		free(time);
+		free(date);
+		free(battery);
+		free(current_song);
+		free(result);
 	}
 
 	XCloseDisplay(dpy);

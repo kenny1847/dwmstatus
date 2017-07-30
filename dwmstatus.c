@@ -67,7 +67,7 @@ char* get_battery() {
 			fclose(file);
 			if (strcmp(status,"Charging") == 0) {
 				return smprintf(" %ld%%", capacity);
-			} else if (strcmp(status,"Discharging") == 0) {
+			} else {
 				if (capacity >= 80) {
 					return smprintf(" %ld%%", capacity);
 				} else if (capacity >= 60 && capacity < 80) {
@@ -79,8 +79,6 @@ char* get_battery() {
 				} else {
 					return smprintf(" %ld%%", capacity);
 				}
-			} else if (strcmp(status,"Full") == 0){
-				return smprintf(" %ld%%", capacity);
 			}
 		}
 	}
@@ -179,8 +177,6 @@ int main(int argc, char** argv) {
 
 		XStoreName(dpy, DefaultRootWindow(dpy), result);
 		XSync(dpy, False);
-
-		printf("%s\n", result);
 
 		free(time);
 		free(date);
